@@ -29,28 +29,26 @@ RUN \
 FROM base AS build
 COPY --from=download /tmp/ffmpeg/ /tmp/ffmpeg/
 WORKDIR /tmp/ffmpeg
-# -O3 makes sure we compile with optimization. setting CFLAGS/CXXFLAGS seems to override
-# default automake cflags.
-# -static-libgcc is needed to make gcc not include gcc_s as "as-needed" shared library which
-# cmake will include as a implicit library.
-# other options to get hardened build (same as ffmpeg hardened)
-ARG CFLAGS="-O3 -s -static-libgcc -fno-strict-overflow -fstack-protector-all -fPIC"
-ARG CXXFLAGS="-O3 -s -static-libgcc -fno-strict-overflow -fstack-protector-all -fPIC"
-ARG LDFLAGS="-Wl,-z,relro,-z,now"
+ARG TARGETPLATFORM
 RUN \
   apk add --no-cache --virtual build \
-    build-base nasm yasm
-RUN \
+    build-base nasm \
+  && \
+  case ${TARGETPLATFORM} in \
+    linux/arm/v*) \
+      export config_opts="--extra-ldexeflags=-static" \
+    ;; \
+  esac && \
   # sed changes --toolchain=hardened -pie to -static-pie
   # extra ldflags stack-size=2097152 is to increase default stack size from 128KB (musl default) to something
   # more similar to glibc (2MB). This fixing segfault with libaom-av1 and libsvtav1 as they seems to pass
   # large things on the stack.
   sed -i 's/add_ldexeflags -fPIE -pie/add_ldexeflags -fPIE -static-pie/' configure && \
   ./configure \
+  ${config_opts} \
   --pkg-config-flags="--static" \
   --extra-cflags="-fopenmp" \
   --extra-ldflags="-fopenmp -Wl,-z,stack-size=2097152" \
-  --extra-ldexeflags="-static" \
   --toolchain=hardened \
   --disable-debug \
   --disable-doc \
@@ -59,7 +57,8 @@ RUN \
   --enable-static \
   --disable-runtime-cpudetect \
   || (cat ffbuild/config.log ; false) \
-  && make -j$(nproc) install
+  && make -j$(nproc) install && \
+  apk del build
 
 FROM scratch AS final
 COPY --from=build /usr/local/bin/ffmpeg /usr/local/bin/ffprobe /
