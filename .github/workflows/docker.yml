@@ -19,13 +19,18 @@ jobs:
       packages: write
 
     strategy:
+      fail-fast: false
       matrix:
         alpine_version:
           # bump: alpine /- ([\d.]+) # updateme/ docker:alpine|^3
           # bump: alpine link "Release notes" https://alpinelinux.org/posts/Alpine-$LATEST-released.html
           - 3.16.2 # updateme
           - edge
-        platform: [linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6]
+        platform:
+          - linux/amd64
+          - linux/arm64
+          - linux/arm/v7
+          - linux/arm/v6
         include:
           - platform: linux/amd64
             name: amd64
