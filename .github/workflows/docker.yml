@@ -70,8 +70,8 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}-${{ matrix.name }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}-alpine-${{ matrix.alpine_version }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-alpine-${{ matrix.alpine_version }}
 
   build-and-push-manfiest:
     if: github.event_name == 'push'
