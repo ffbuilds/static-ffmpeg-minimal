@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 
 # bump: ffmpeg /FFMPEG_VERSION=([\d.]+)/ https://github.com/FFmpeg/FFmpeg.git|^5
 # bump: ffmpeg after ./hashupdate Dockerfile FFMPEG $LATEST
