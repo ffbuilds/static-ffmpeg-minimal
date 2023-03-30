@@ -9,33 +9,38 @@ ARG FFMPEG_URL="https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2"
 ARG FFMPEG_SHA256=39a0bcc8d98549f16c570624678246a6ac736c066cebdb409f9502e915b22f2b
 
 # Must be specified
-ARG ALPINE_VERSION
+ARG UBUNTU_VERSION=jammy
 
-FROM alpine:${ALPINE_VERSION} AS base
+FROM ubuntu:${UBUNTU_VERSION} AS base
 
 FROM base AS download
 ARG FFMPEG_URL
 ARG FFMPEG_SHA256
 ARG WGET_OPTS="--retry-on-host-error --retry-on-http-error=429,500,502,503 -nv"
 WORKDIR /tmp
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DOWNLOAD_DEPS="ca-certificates lbzip2 wget"
 RUN \
-  apk add --no-cache --virtual download \
-    coreutils wget tar && \
+  apt-get -yqq update && \
+  apt-get install -yq --no-install-recommends ${DOWNLOAD_DEPS} && \
   wget $WGET_OPTS -O ffmpeg.tar.bz2 "$FFMPEG_URL" && \
   echo "$FFMPEG_SHA256  ffmpeg.tar.bz2" | sha256sum --status -c - && \
   mkdir ffmpeg && \
   tar xf ffmpeg.tar.bz2 -C ffmpeg --strip-components=1 && \
   rm ffmpeg.tar.bz2 && \
-  apk del download
+  apt-get purge -y ${DOWNLOAD_DEPS} && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 FROM base AS build
 COPY --from=download /tmp/ffmpeg/ /tmp/ffmpeg/
 WORKDIR /tmp/ffmpeg
 ARG TARGETPLATFORM
+ENV BUILD_DEPS="build-essential nasm"
 RUN \
-  apk add --no-cache --virtual build \
-    build-base nasm \
-  && \
+  apt-get -yqq update && \
+  apt-get install -yq --no-install-recommends ${BUILD_DEPS} && \
   case ${TARGETPLATFORM} in \
     linux/arm/v*) \
       export config_opts="--extra-ldexeflags=-static" \
@@ -60,7 +65,10 @@ RUN \
   --disable-runtime-cpudetect \
   || (cat ffbuild/config.log ; false) \
   && make -j$(nproc) install && \
-  apk del build
+  apt-get purge -y ${BUILD_DEPS} && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 FROM scratch AS final
 COPY --from=build /usr/local/bin/ffmpeg /usr/local/bin/ffprobe /
